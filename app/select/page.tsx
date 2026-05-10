@@ -2,8 +2,42 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Anthropic from '@anthropic-ai/sdk';
 import { Passage } from '@/lib/types';
 import PassageCard from '@/components/PassageCard';
+
+const ANALYZE_SYSTEM_PROMPT = `너는 수능 국어 시험지 텍스트를 분석하는 도우미다.
+아래 텍스트(및 PDF 원본)에서 비문학(독서) 지문들을 찾아서 JSON으로 반환해라.
+
+그림, 도표, 그래프가 있으면 각각을 텍스트로 요약하여 지문 본문(passage)의 해당 위치에 삽입해라.
+요약 형식: [<그림>: 설명] 또는 [<표>: 설명] 또는 [<그래프>: 설명]
+
+예시:
+- [<그림>: P층(위)과 Q층(아래)으로 이루어진 띠가 P층 쪽으로 원의 호 형태로 휘어진 모습]
+- [<표>: 관형사형 어미의 형태 - 동사와 형용사의 현재/과거/미래 시제별 어미 정리]
+- [<그래프>: 충전 시간에 따른 단자 전압(V)과 충전 전류(A) 변화. 전압은 점진적 상승 후 급등, 전류는 점진적 하강]
+
+출력 형식 (JSON만, 다른 텍스트 없이):
+[
+  {
+    "id": 1,
+    "title": "법 해석과 보증",
+    "question_range": "4-9",
+    "passage": "(가) 법조문으로 구성된...(지문 전문, 그림이 있으면 [<그림>: 설명] 포함)",
+    "questions": "4. (가)와 (나)의 내용 전개...(문제 전문)",
+    "paragraph_count": {"가": 4, "나": 4},
+    "metadata": "(가)는 4문단 구조:\\n- (가)1문단: 법 해석의 정의...",
+    "figures": [
+      {
+        "id": "fig1",
+        "location": "2문단",
+        "description": "설명"
+      }
+    ]
+  }
+]
+
+figures 배열: 그림/도표/그래프가 없으면 빈 배열 [].`;
 
 export default function SelectPage() {
   const router = useRouter();
@@ -47,59 +81,65 @@ export default function SelectPage() {
 
     const analyze = async () => {
       try {
-        const res = await fetch('/api/analyze', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pdfText, pdfBase64, apiKey, model }),
+        const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+
+        const userContent: Anthropic.MessageCreateParams['messages'][0]['content'] = [];
+        if (pdfBase64) {
+          (userContent as Anthropic.ContentBlockParam[]).push({
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 },
+          } as Anthropic.DocumentBlockParam);
+        }
+        (userContent as Anthropic.ContentBlockParam[]).push({ type: 'text', text: pdfText });
+
+        setStatusMessage('지문 분석 중...');
+
+        const stream = client.messages.stream({
+          model: model || 'claude-sonnet-4-6',
+          max_tokens: 16000,
+          system: ANALYZE_SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: userContent }],
         });
 
-        if (!res.body) throw new Error('응답 스트림을 받을 수 없습니다.');
+        let accumulated = '';
 
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        let completed = false;
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() ?? '';
-
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            try {
-              const event = JSON.parse(line.slice(6));
-              if (event.type === 'status') {
-                setStatusMessage(event.message);
-              } else if (event.type === 'progress') {
-                setCharCount(event.chars);
-              } else if (event.type === 'done') {
-                completed = true;
-                const result = event.passages || [];
-                setPassages(result);
-                sessionStorage.setItem('lastAnalyzedPdfText', pdfText);
-                sessionStorage.setItem('analyzedPassages', JSON.stringify(result));
-                setLoading(false);
-              } else if (event.type === 'error') {
-                completed = true;
-                setError(event.message);
-                setLoading(false);
-              }
-            } catch {
-              // partial JSON — completed in next chunk
-            }
+        for await (const event of stream) {
+          if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+            accumulated += event.delta.text;
+            setCharCount(accumulated.length);
           }
         }
 
-        if (!completed) {
-          setError('서버 응답이 중간에 끊겼습니다. 서버 타임아웃이거나 네트워크 문제일 수 있습니다. 다시 시도해주세요.');
+        const finalMessage = await stream.finalMessage();
+        if (finalMessage.stop_reason === 'max_tokens') {
+          setError('지문이 너무 길어 분석이 잘렸습니다. 더 짧은 시험지를 시도해주세요.');
           setLoading(false);
+          return;
         }
-      } catch {
-        setError('분석 중 오류가 발생했습니다. 다시 시도해주세요.');
+
+        setStatusMessage('JSON 파싱 중...');
+
+        let text = accumulated.trim();
+        if (text.startsWith('```')) {
+          text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+        }
+
+        try {
+          const parsed = JSON.parse(text);
+          setPassages(parsed);
+          sessionStorage.setItem('lastAnalyzedPdfText', pdfText);
+          sessionStorage.setItem('analyzedPassages', JSON.stringify(parsed));
+        } catch {
+          setError(`지문 파싱에 실패했습니다. 다시 시도해주세요.\n\nClaude 응답 원문:\n${accumulated.slice(0, 500)}`);
+        }
+        setLoading(false);
+      } catch (err: unknown) {
+        const e = err as { status?: number; message?: string };
+        if (e.status === 429) {
+          setError('API 요청 한도 초과 — 1분 후 다시 시도해주세요.');
+        } else {
+          setError(e.message || '분석 중 오류가 발생했습니다. 다시 시도해주세요.');
+        }
         setLoading(false);
       }
     };
