@@ -47,11 +47,11 @@ export default function PDFUploader({ onExtracted }: PDFUploaderProps) {
     setError('');
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      const pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
-      const [res, base64] = await Promise.all([
-        fetch('/api/extract', { method: 'POST', body: formData }),
+      const [arrayBuffer, base64] = await Promise.all([
+        file.arrayBuffer(),
         new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve((reader.result as string).split(',')[1]);
@@ -60,9 +60,18 @@ export default function PDFUploader({ onExtracted }: PDFUploaderProps) {
         }),
       ]);
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      onExtracted(data.text, base64);
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+      const pageTexts: string[] = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item) => ('str' in item ? item.str : ''))
+          .join(' ');
+        pageTexts.push(pageText);
+      }
+
+      onExtracted(pageTexts.join('\n'), base64);
     } catch (err: unknown) {
       const e = err as { message?: string };
       setError(e.message || 'PDF 텍스트 추출에 실패했습니다.');
