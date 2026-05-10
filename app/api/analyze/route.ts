@@ -102,8 +102,12 @@ export async function POST(req: NextRequest) {
           send({ type: 'error', message: `지문 파싱에 실패했습니다. 다시 시도해주세요.\n\nClaude 응답 원문:\n${accumulated.slice(0, 500)}` });
         }
       } catch (err: unknown) {
-        const e = err as { message?: string };
-        send({ type: 'error', message: e.message || '분석 중 오류가 발생했습니다.' });
+        const e = err as { status?: number; message?: string };
+        if (e.status === 429) {
+          send({ type: 'error', message: 'API 요청 한도 초과 — 1분 후 다시 시도해주세요.' });
+        } else {
+          send({ type: 'error', message: e.message || '분석 중 오류가 발생했습니다.' });
+        }
       } finally {
         controller.close();
       }

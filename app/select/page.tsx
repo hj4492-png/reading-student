@@ -162,7 +162,7 @@ export default function SelectPage() {
                   />
                 </div>
                 <p className="text-xs text-gray-400 text-center">
-                  수능 시험지 분석은 보통 3~4분 소요됩니다
+                  수능 시험지 분석은 보통 5~6분 소요됩니다
                 </p>
               </div>
             );

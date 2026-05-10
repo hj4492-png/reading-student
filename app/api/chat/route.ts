@@ -77,7 +77,13 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error: unknown) {
-    const err = error as { message?: string };
+    const err = error as { status?: number; message?: string };
+    if (err.status === 429) {
+      return new Response(
+        JSON.stringify({ error: 'API 요청 한도 초과 — 1분 후 다시 시도해주세요.' }),
+        { status: 429 }
+      );
+    }
     return new Response(JSON.stringify({ error: err.message || '오류가 발생했습니다.' }), {
       status: 500,
     });
