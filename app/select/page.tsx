@@ -58,6 +58,7 @@ export default function SelectPage() {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
+        let completed = false;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -76,12 +77,14 @@ export default function SelectPage() {
               } else if (event.type === 'progress') {
                 setCharCount(event.chars);
               } else if (event.type === 'done') {
+                completed = true;
                 const result = event.passages || [];
                 setPassages(result);
                 sessionStorage.setItem('lastAnalyzedPdfText', pdfText);
                 sessionStorage.setItem('analyzedPassages', JSON.stringify(result));
                 setLoading(false);
               } else if (event.type === 'error') {
+                completed = true;
                 setError(event.message);
                 setLoading(false);
               }
@@ -89,6 +92,11 @@ export default function SelectPage() {
               // partial JSON — completed in next chunk
             }
           }
+        }
+
+        if (!completed) {
+          setError('서버 응답이 중간에 끊겼습니다. 서버 타임아웃이거나 네트워크 문제일 수 있습니다. 다시 시도해주세요.');
+          setLoading(false);
         }
       } catch {
         setError('분석 중 오류가 발생했습니다. 다시 시도해주세요.');
