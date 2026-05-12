@@ -3,9 +3,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Message, Passage, MODE_SWITCH_MARKER } from '@/lib/types';
+import { resetSession } from '@/lib/session';
+import { makePassageExcerptId } from '@/lib/feedback';
 import PassagePanel, { PanelTab } from '@/components/PassagePanel';
 import ChatPanel from '@/components/ChatPanel';
 import ProgressBar from '@/components/ProgressBar';
+import SessionFeedbackModal from '@/components/SessionFeedbackModal';
 
 const INITIAL_MESSAGE: Message = {
   role: 'assistant',
@@ -25,6 +28,13 @@ export default function SessionPage() {
   const [mobileTab, setMobileTab] = useState<MobileTab>('passage');
   const [pdfBase64, setPdfBase64] = useState<string | null>(null);
   const [showEndModal, setShowEndModal] = useState(false);
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackTrigger, setFeedbackTrigger] = useState<'end_button' | 'header_button' | 'auto_modal'>('header_button');
+  const [sessionId] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const { sessionId: id } = resetSession();
+    return id;
+  });
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -257,6 +267,17 @@ export default function SessionPage() {
             <span className="text-gray-600">{model === 'claude-opus-4-7' ? 'Opus' : 'Sonnet'}</span>
           </button>
           <button
+            onClick={() => {
+              setFeedbackTrigger('header_button');
+              setShowFeedbackModal(true);
+            }}
+            className="text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors flex items-center gap-1"
+            aria-label="피드백 보내기"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            피드백
+          </button>
+          <button
             onClick={() => setShowEndModal(true)}
             className="text-xs text-gray-500 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
           >
@@ -292,7 +313,7 @@ export default function SessionPage() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Passage panel */}
         <div
-          className={`bg-white border-r border-gray-200 flex flex-col overflow-hidden
+          className={`bg-white border-r border-gray-200 flex flex-col overflow-hidden min-w-0
             w-full md:w-1/2
             ${mobileTab === 'chat' ? 'hidden md:flex' : 'flex'}
           `}
@@ -307,7 +328,7 @@ export default function SessionPage() {
 
         {/* Right: Chat panel */}
         <div
-          className={`flex flex-col overflow-hidden
+          className={`flex flex-col overflow-hidden min-w-0
             w-full md:w-1/2
             ${mobileTab === 'chat' ? 'flex' : 'hidden md:flex'}
           `}
@@ -318,9 +339,24 @@ export default function SessionPage() {
             onModeSwitch={handleModeSwitch}
             onReset={handleReset}
             isStreaming={isStreaming}
+            sessionId={sessionId}
+            passageId={passage ? makePassageExcerptId(passage.passage) : undefined}
+            model={model}
           />
         </div>
       </div>
+
+      {/* Session feedback modal */}
+      <SessionFeedbackModal
+        isOpen={showFeedbackModal}
+        onClose={() => setShowFeedbackModal(false)}
+        sessionId={sessionId}
+        totalTurns={messages.filter(m => m.role === 'user' && m.content !== MODE_SWITCH_MARKER).length}
+        passageId={passage ? makePassageExcerptId(passage.passage) : undefined}
+        trigger={feedbackTrigger}
+      />
+
+      {/* TODO: V2 — 자동 모달 (10턴 이상 + 5분 무응답 시 trigger: 'auto_modal') */}
 
       {/* Session end modal */}
       {showEndModal && (
@@ -329,6 +365,28 @@ export default function SessionPage() {
             <h2 className="font-bold text-gray-900 text-lg">세션 종료</h2>
             <p className="text-sm text-gray-500">다음 작업을 선택하세요.</p>
             <div className="space-y-2">
+              {(() => {
+                const alreadySent = typeof window !== 'undefined' && sessionStorage.getItem('session_feedback_submitted') === 'true';
+                return (
+                  <button
+                    onClick={() => {
+                      if (alreadySent) return;
+                      setShowEndModal(false);
+                      setFeedbackTrigger('end_button');
+                      setShowFeedbackModal(true);
+                    }}
+                    disabled={alreadySent}
+                    className={`w-full text-left border border-gray-200 rounded-xl px-4 py-3 text-sm transition-colors ${
+                      alreadySent ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <span>피드백 남기기</span>
+                    {alreadySent && (
+                      <span className="block text-xs text-gray-400 mt-0.5">이미 피드백을 남겨주셨습니다.</span>
+                    )}
+                  </button>
+                );
+              })()}
               <button
                 onClick={handleSaveChat}
                 className="w-full text-left border border-gray-200 rounded-xl px-4 py-3 text-sm hover:bg-gray-50 transition-colors"
