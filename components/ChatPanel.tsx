@@ -60,7 +60,7 @@ export default function ChatPanel({
     requestAnimationFrame(() => {
       container.scrollTop = container.scrollHeight;
     });
-  }, [messages]);
+  }, [messages, isStreaming]);
 
   const handleScroll = () => {
     const container = messagesContainerRef.current;
@@ -98,7 +98,7 @@ export default function ChatPanel({
       </div>
 
       {/* Messages */}
-      <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 min-h-0 overflow-y-auto px-4 py-4 space-y-3">
         {messages.map((msg, i) => {
           if (msg.content === MODE_SWITCH_MARKER) {
             return (
@@ -144,7 +144,7 @@ export default function ChatPanel({
                   </ReactMarkdown>
                 )}
               </div>
-              {isAssistant && msg.content && !isStreaming && (
+              {isAssistant && msg.content && !(isStreaming && i === messages.length - 1) && (
                 <MessageFeedback
                   messageId={`msg-${i}`}
                   aiMessageContent={msg.content}
