@@ -1,0 +1,49 @@
+# 수능 비문학 독해 과외 AI
+
+수능 비문학 지문을 한 문장씩 함께 읽으며 학생의 독해력을 훈련시키는 AI 챗봇.
+
+배포 사이트: https://readingstudent.vercel.app
+
+## 소개
+
+비문학 지문에서 자주 막히는 학생(대략 3~5등급)을 위해 만든 학습 도구입니다. 지문을 대신 풀어주는 것이 아니라, 학생이 스스로 끊어 읽고 추론하도록 한 문장씩 질문을 던지는 방식으로 설계되었습니다.
+
+## 사용 방법
+
+1. 사이트 접속 → 본인 Claude API 키 발급 후 입력
+2. 비문학 지문 부분만 PDF로 잘라 업로드
+3. AI 챗봇과 대화하며 지문 이해
+
+## 기술 스택
+
+- **Framework**: Next.js (App Router) + Tailwind CSS
+- **배포**: Vercel
+- **AI**: Anthropic Claude API (사용자 BYOK 구조)
+- **피드백 수집**: Google Apps Script + Google Sheets
+
+## 주요 기능
+
+- PDF 업로드 후 비문학 지문/문제 자동 분리
+- 시스템 프롬프트 기반 단계별 과외 인터랙션
+- AI 응답별 마이크로 피드백 (👍/👎)
+- 세션 피드백 모달 (자가 등급, 도움/답답 모먼트, 자유 의견)
+- 익명 피드백 수집 (Apps Script → Sheets)
+
+## 비용 구조
+
+본 사이트에는 결제·구독·광고가 없고, 제작자는 수익을 받지 않습니다. 사용자가 직접 발급한 Claude API 키의 사용량만 본인 API 계정에서 차감되는 BYOK(Bring Your Own Key) 구조입니다.
+
+## 변경 이력
+
+- **v1** (2026.05) — 첫 공개 배포. 시스템 프롬프트 v4.2, 사이트 내 피드백 시스템 통합
+
+## 저자
+
+- **GitHub**: [@hj4492-png](https://github.com/hj4492-png)
+- **시작일**: 2026년 4월
+- **라이선스**: [MIT](./LICENSE)
+
+---
+
+본 도구는 한국 수능(CSAT) 비문학 학습을 위한 비영리 학습 도구입니다.  
+This is a non-commercial educational tool for Korean college entrance exam reading comprehension practice.
