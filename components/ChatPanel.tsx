@@ -52,13 +52,22 @@ export default function ChatPanel({
   const [input, setInput] = useState('');
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const shouldAutoScroll = useRef(true);
 
   useEffect(() => {
     const container = messagesContainerRef.current;
-    if (container) {
+    if (!container || !shouldAutoScroll.current) return;
+    requestAnimationFrame(() => {
       container.scrollTop = container.scrollHeight;
-    }
+    });
   }, [messages]);
+
+  const handleScroll = () => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    shouldAutoScroll.current = scrollHeight - scrollTop - clientHeight < 80;
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -71,6 +80,7 @@ export default function ChatPanel({
     const trimmed = input.trim();
     if (!trimmed || isStreaming) return;
     setInput('');
+    shouldAutoScroll.current = true;
     onSend(trimmed);
   };
 
@@ -88,7 +98,7 @@ export default function ChatPanel({
       </div>
 
       {/* Messages */}
-      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.map((msg, i) => {
           if (msg.content === MODE_SWITCH_MARKER) {
             return (
