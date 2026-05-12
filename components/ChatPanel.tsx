@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown, { Components } from 'react-markdown';
 import { Message, MODE_SWITCH_MARKER } from '@/lib/types';
+import MessageFeedback from './MessageFeedback';
 
 interface ChatPanelProps {
   messages: Message[];
@@ -10,13 +11,16 @@ interface ChatPanelProps {
   onModeSwitch: () => void;
   onReset: () => void;
   isStreaming: boolean;
+  sessionId: string;
+  passageId?: string;
+  model?: string;
 }
 
 const markdownComponents: Components = {
   p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
   strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
   blockquote: ({ children }) => (
-    <blockquote className="border-l-2 border-gray-300 pl-2 my-1 text-gray-700">{children}</blockquote>
+    <blockquote className="border-l-2 border-gray-300 pl-2 my-1 text-gray-700 overflow-hidden break-words">{children}</blockquote>
   ),
   ul: ({ children }) => <ul className="list-disc pl-4 my-1 space-y-0.5">{children}</ul>,
   ol: ({ children }) => <ol className="list-decimal pl-4 my-1 space-y-0.5">{children}</ol>,
@@ -32,7 +36,7 @@ const markdownComponents: Components = {
     }
     return <code className="bg-gray-100 rounded px-1 py-0.5 text-xs font-mono">{children}</code>;
   },
-  pre: ({ children }) => <pre className="my-1">{children}</pre>,
+  pre: ({ children }) => <pre className="my-1 overflow-x-auto">{children}</pre>,
 };
 
 export default function ChatPanel({
@@ -41,6 +45,9 @@ export default function ChatPanel({
   onModeSwitch,
   onReset,
   isStreaming,
+  sessionId,
+  passageId,
+  model,
 }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -93,6 +100,16 @@ export default function ChatPanel({
           }
 
           const isUser = msg.role === 'user';
+          const isAssistant = msg.role === 'assistant';
+          let userPriorMessage = '';
+          if (isAssistant) {
+            for (let j = i - 1; j >= 0; j--) {
+              if (messages[j].role === 'user' && messages[j].content !== MODE_SWITCH_MARKER) {
+                userPriorMessage = messages[j].content;
+                break;
+              }
+            }
+          }
           return (
             <div
               key={i}
@@ -102,10 +119,10 @@ export default function ChatPanel({
                 {isUser ? '학생' : '과외 AI'}
               </span>
               <div
-                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed break-words ${
                   isUser
                     ? 'bg-blue-600 text-white rounded-br-sm whitespace-pre-wrap'
-                    : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm'
+                    : 'bg-white border border-gray-200 text-gray-800 rounded-bl-sm shadow-sm overflow-x-auto'
                 }`}
               >
                 {isUser ? msg.content : (
@@ -114,6 +131,16 @@ export default function ChatPanel({
                   </ReactMarkdown>
                 )}
               </div>
+              {isAssistant && msg.content && !isStreaming && (
+                <MessageFeedback
+                  messageId={`msg-${i}`}
+                  aiMessageContent={msg.content}
+                  userPriorMessage={userPriorMessage}
+                  sessionId={sessionId}
+                  passageId={passageId}
+                  model={model}
+                />
+              )}
             </div>
           );
         })}
