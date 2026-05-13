@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { AppSettings } from '@/lib/types';
 
 export default function SettingsPage() {
@@ -61,6 +62,12 @@ export default function SettingsPage() {
           <p className="text-gray-500 text-sm">
             수능 비문학을 함께 읽으며 읽기 습관을 길러주는 AI 과외 교사
           </p>
+          <Link
+            href="/example"
+            className="inline-block mt-3 text-sm text-gray-400 hover:text-blue-600 transition-colors"
+          >
+            처음 오셨나요? <span className="font-medium text-blue-600">예시 세션 먼저 보기 →</span>
+          </Link>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
